@@ -1,0 +1,354 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <chrono>
+#include <random>
+#include <vector>
+#include <sstream>
+
+using namespace std;
+
+struct Point {
+    int x;
+    int y;
+
+    Point(int _x, int _y) : x(_x), y(_y) {}
+};
+
+struct Node {
+    Point position;
+    int data;
+
+    Node(const Point& _position, int _data) : position(_position), data(_data) {}
+};
+
+class Quad {
+private:
+    struct QuadTreeNode {
+        Node* node;
+        QuadTreeNode* children[4];
+
+        QuadTreeNode() {
+            node = nullptr;
+            for (int i = 0; i < 4; ++i)
+                children[i] = nullptr;
+        }
+    };
+
+    Point topLeft;
+    Point bottomRight;
+    QuadTreeNode* root;
+
+public:
+    Quad(const Point& _topLeft, const Point& _bottomRight) : topLeft(_topLeft), bottomRight(_bottomRight), root(nullptr) {}
+
+    ~Quad() {
+        clear();
+    }
+
+    void insert(Node* node) {
+        if (!isInside(node->position))
+            return;
+
+        if (root == nullptr)
+            root = new QuadTreeNode();
+
+        insertHelper(root, node, topLeft, bottomRight);
+    }
+
+    Node* search(const Point& position) {
+        if (!isInside(position))
+            return nullptr;
+
+        return searchHelper(root, position);
+    }
+
+    void clear() {
+        clearHelper(root);
+        root = nullptr;
+    }
+
+    int countRegion(const Point& topLeft, const Point& bottomRight) {
+        return countRegionHelper(root, topLeft, bottomRight);
+    }
+
+    int aggregateRegion(const Point& topLeft, const Point& bottomRight) {
+        return aggregateRegionHelper(root, topLeft, bottomRight);
+    }
+
+private:
+    void insertHelper(QuadTreeNode* node, Node* newNode, const Point& topLeft, const Point& bottomRight) {
+        if (node->node == nullptr) {
+            node->node = newNode;
+            return;
+        }
+
+        int quadrant = getQuadrant(node->node->position, topLeft, bottomRight);
+
+        if (node->children[quadrant] == nullptr)
+            node->children[quadrant] = new QuadTreeNode();
+
+        Point newTopLeft = getQuadrantTopLeft(quadrant, topLeft, bottomRight);
+        Point newBottomRight = getQuadrantBottomRight(quadrant, topLeft, bottomRight);
+
+        insertHelper(node->children[quadrant], newNode, newTopLeft, newBottomRight);
+    }
+
+    Node* searchHelper(QuadTreeNode* node, const Point& position) {
+        if (node == nullptr)
+            return nullptr;
+
+        if (node->node != nullptr && node->node->position.x == position.x && node->node->position.y == position.y)
+            return node->node;
+
+        int quadrant = getQuadrant(position, topLeft, bottomRight);
+
+        return searchHelper(node->children[quadrant], position);
+    }
+
+    void clearHelper(QuadTreeNode* node) {
+        if (node == nullptr)
+         return;
+
+        for (int i = 0; i < 4; ++i)
+        clearHelper(node->children[i]);
+
+        if (node->node != nullptr) {
+            delete node->node;
+            node->node = nullptr;
+        }
+
+        delete node;
+        }
+
+
+    int countRegionHelper(QuadTreeNode* node, const Point& topLeft, const Point& bottomRight) {
+        if (node == nullptr)
+            return 0;
+
+        if (node->node == nullptr)
+            return 0;
+
+        if (isInsideRegion(node->node->position, topLeft, bottomRight))
+            return 1;
+
+        int count = 0;
+
+        for (int i = 0; i < 4; ++i)
+            count += countRegionHelper(node->children[i], topLeft, bottomRight);
+
+        return count;
+    }
+
+    int aggregateRegionHelper(QuadTreeNode* node, const Point& topLeft, const Point& bottomRight) {
+        if (node == nullptr)
+            return 0;
+
+        if (node->node == nullptr)
+            return 0;
+
+        if (isInsideRegion(node->node->position, topLeft, bottomRight))
+            return node->node->data;
+
+        int sum = 0;
+
+        for (int i = 0; i < 4; ++i)
+            sum += aggregateRegionHelper(node->children[i], topLeft, bottomRight);
+
+        return sum;
+    }
+
+    int getQuadrant(const Point& position, const Point& topLeft, const Point& bottomRight) {
+        int midX = (topLeft.x + bottomRight.x) / 2;
+        int midY = (topLeft.y + bottomRight.y) / 2;
+
+        if (position.x <= midX) {
+            if (position.y <= midY)
+                return 0; // Top-left quadrant
+            else
+                return 2; // Bottom-left quadrant
+        } else {
+            if (position.y <= midY)
+                return 1; // Top-right quadrant
+            else
+                return 3; // Bottom-right quadrant
+        }
+    }
+
+    Point getQuadrantTopLeft(int quadrant, const Point& topLeft, const Point& bottomRight) {
+        int midX = (topLeft.x + bottomRight.x) / 2;
+        int midY = (topLeft.y + bottomRight.y) / 2;
+
+        if (quadrant == 0) {
+            return Point(topLeft.x, topLeft.y);
+        } else if (quadrant == 1) {
+            return Point(midX + 1, topLeft.y);
+        } else if (quadrant == 2) {
+            return Point(topLeft.x, midY + 1);
+        } else {
+            return Point(midX + 1, midY + 1);
+        }
+    }
+
+    Point getQuadrantBottomRight(int quadrant, const Point& topLeft, const Point& bottomRight) {
+        int midX = (topLeft.x + bottomRight.x) / 2;
+        int midY = (topLeft.y + bottomRight.y) / 2;
+
+        if (quadrant == 0) {
+            return Point(midX, midY);
+        } else if (quadrant == 1) {
+            return Point(bottomRight.x, midY);
+        } else if (quadrant == 2) {
+            return Point(midX, bottomRight.y);
+        } else {
+            return Point(bottomRight.x, bottomRight.y);
+        }
+    }
+
+    bool isInside(const Point& position) {
+        return position.x >= topLeft.x && position.x <= bottomRight.x && position.y >= topLeft.y && position.y <= bottomRight.y;
+    }
+
+    bool isInsideRegion(const Point& position, const Point& topLeft, const Point& bottomRight) {
+        return position.x >= topLeft.x && position.x <= bottomRight.x && position.y >= topLeft.y && position.y <= bottomRight.y;
+    }
+};
+
+void measureInsertionTimes(Quad& plane2D, ifstream& file) {
+    string linea, population, latitud, longitud;
+
+    // Ignorar las líneas de encabezado
+    getline(file, linea);
+
+    // Medición de tiempos de inserción
+    vector<int> numCities = { 100000, 200000, 400000, 800000, 1600000 };
+    vector<double> insertionTimes;
+
+    for (int num : numCities) {
+        // Abrir el archivo y leer solo el número deseado de ciudades
+        file.clear();
+        file.seekg(0);
+        getline(file, linea); // Ignorar la línea de encabezado
+
+        vector<Node*> nodes;
+        nodes.reserve(num);
+
+        for (int i = 0; i < num; ++i) {
+            getline(file, linea);
+            stringstream ss(linea);
+
+            getline(ss, linea, ',');  // Ignorar la columna "Country"
+            getline(ss, linea, ',');  // Ignorar la columna "City"
+            getline(ss, population, ',');
+            getline(ss, latitud, ',');
+            getline(ss, longitud, '\n');
+
+            int pop, lat, lon;
+            stringstream(population) >> pop;
+            stringstream(latitud) >> lat;
+            stringstream(longitud) >> lon;
+
+            nodes.push_back(new Node(Point(lat, lon), pop));
+        }
+
+        // Insertar los nodos y medir el tiempo
+        auto start = chrono::high_resolution_clock::now();
+
+        for (Node* node : nodes) {
+            plane2D.insert(node);
+        }
+
+        auto end = chrono::high_resolution_clock::now();
+        double duration = chrono::duration<double, milli>(end - start).count();
+        insertionTimes.push_back(duration);
+
+        // Liberar memoria
+        for (Node* node : nodes) {
+            delete node;
+        }
+    }
+
+    // Calcular el promedio de los tiempos de inserción
+    double averageInsertionTime = 0.0;
+    for (double time : insertionTimes) {
+        averageInsertionTime += time;
+    }
+    averageInsertionTime /= insertionTimes.size();
+
+    // Imprimir resultados
+    cout << "Tiempo promedio de inserción:" << endl;
+    for (int i = 0; i < numCities.size(); ++i) {
+        cout << "Número de ciudades: " << numCities[i] << " - Tiempo: " << insertionTimes[i] << " ms" << endl;
+    }
+    cout << "Promedio: " << averageInsertionTime << " ms" << endl;
+}
+
+void measureRegionTimes(Quad& plane2D, ifstream& file) {
+    string linea, population, latitud, longitud;
+
+    // Ignorar las líneas de encabezado
+    getline(file, linea);
+
+    // Dimensiones de las áreas a probar
+    vector<Point> regions = { {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} };
+    regions[0] = { 0, 0 };           // 2x2
+    regions[1] = { 0, 0 };           // 100x100
+    regions[2] = { 0, 0 };           // 500x300
+    regions[3] = { 0, 0 };           // 500x500
+    regions[4] = { 0, 0 };           // 1000x1000
+
+    // Medición de tiempos de reporte de regiones
+    vector<double> countRegionTimes;
+    vector<double> aggregateRegionTimes;
+
+    for (const Point& region : regions) {
+        // Medir el tiempo de countRegion
+        auto start = chrono::high_resolution_clock::now();
+        int count = plane2D.countRegion(region, { region.x + 2, region.y + 2 });
+        auto end = chrono::high_resolution_clock::now();
+        double duration = chrono::duration<double, milli>(end - start).count();
+        countRegionTimes.push_back(duration);
+
+        // Medir el tiempo de aggregateRegion
+        start = chrono::high_resolution_clock::now();
+        int aggregate = plane2D.aggregateRegion(region, { region.x + 2, region.y + 2 });
+        end = chrono::high_resolution_clock::now();
+        duration = chrono::duration<double, milli>(end - start).count();
+        aggregateRegionTimes.push_back(duration);
+    }
+
+    // Imprimir resultados
+    cout << "Tiempo de reporte de regiones:" << endl;
+    cout << "Dimensiones de las regiones: 2x2, 100x100, 500x300, 500x500, 1000x1000" << endl;
+    cout << "Tiempos de countRegion:" << endl;
+    for (int i = 0; i < countRegionTimes.size(); ++i) {
+        cout << "Región " << i + 1 << " - Tiempo: " << countRegionTimes[i] << " ms" << endl;
+    }
+    cout << "Tiempos de aggregateRegion:" << endl;
+    for (int i = 0; i < aggregateRegionTimes.size(); ++i) {
+        cout << "Región " << i + 1 << " - Tiempo: " << aggregateRegionTimes[i] << " ms" << endl;
+    }
+}
+
+int main() {
+    ifstream file("/home/redes/Downloads/worldcitiespop_fixed.csv");
+
+    if (!file) {
+        cout << "Error al abrir el archivo." << endl;
+        return 1;
+    }
+
+    // Especificar el rango de coordenadas del plano 2D
+    Point topLeft(0, 0);
+    Point bottomRight(360, 180);
+
+    Quad plane2D(topLeft, bottomRight);
+
+    measureInsertionTimes(plane2D, file);
+    cout << endl;
+    measureRegionTimes(plane2D, file);
+
+    file.close();
+
+    return 0;
+}
