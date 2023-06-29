@@ -1,0 +1,110 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <queue>
+#include <unordered_map>
+#include <unordered_set>
+#include <algorithm>
+#include <numeric>
+#include <cmath>
+
+using namespace std;
+
+// Paso 1: Leer la entrada de los archivos de texto
+
+vector<vector<pair<string, string>>> leerDatos(const vector<string>& archivos) {
+    vector<vector<pair<string, string>>> datos;
+
+    for (const string& archivo : archivos) {
+        vector<pair<string, string>> curso;
+
+        ifstream archivoEntrada(archivo);
+        if (!archivoEntrada) {
+            cerr << "Error al abrir el archivo: " << archivo << endl;
+            exit(1);
+        }
+
+        string linea;
+        while (getline(archivoEntrada, linea)) {
+            size_t comaPos = linea.find(",");
+            string alumno1 = linea.substr(0, comaPos);
+            string alumno2 = linea.substr(comaPos + 2);
+            curso.push_back({ alumno1, alumno2 });
+        }
+
+        datos.push_back(curso);
+    }
+
+    return datos;
+}
+
+// Paso 2: Crear el grafo y obtener las excentricidades
+
+int bfs(const unordered_map<string, vector<string>>& grafo, const string& inicio) {
+    unordered_set<string> visitados;
+    queue<pair<string, int>> cola;
+    cola.push({ inicio, 0 });
+    int maxDistancia = 0;
+
+    while (!cola.empty()) {
+        string nodo = cola.front().first;
+        int distancia = cola.front().second;
+        cola.pop();
+        visitados.insert(nodo);
+        maxDistancia = max(maxDistancia, distancia);
+
+        for (const string& vecino : grafo.at(nodo)) {
+            if (visitados.find(vecino) == visitados.end()) {
+                cola.push({ vecino, distancia + 1 });
+            }
+        }
+    }
+
+    return maxDistancia;
+}
+
+vector<int> calcularExcentricidades(const vector<pair<string, string>>& datos) {
+    unordered_map<string, vector<string>> grafo;
+    unordered_set<string> alumnos;
+
+    for (const auto& par : datos) {
+        grafo[par.first].push_back(par.second);
+        grafo[par.second].push_back(par.first);
+        alumnos.insert(par.first);
+        alumnos.insert(par.second);
+    }
+
+    vector<int> excentricidades;
+    for (const string& alumno : alumnos) {
+        excentricidades.push_back(bfs(grafo, alumno));
+    }
+
+    return excentricidades;
+}
+
+int main() {
+    // Paso 1: Leer la entrada de los archivos de texto
+
+    vector<string> archivos = { "curso1.txt", "curso2.txt", "curso3.txt", "curso4.txt" };
+    vector<vector<pair<string, string>>> datos = leerDatos(archivos);
+
+    // Paso 2: Crear el grafo y obtener las excentricidades
+
+    vector<vector<int>> excentricidades;
+
+    for (const auto& curso : datos) {
+        excentricidades.push_back(calcularExcentricidades(curso));
+    }
+
+    // Imprimir las excentricidades por curso
+
+    for (int i = 0; i < excentricidades.size(); ++i) {
+        cout << "Excentricidades para el Curso " << (i + 1) << ":" << endl;
+        for (int j = 0; j < excentricidades[i].size();++j) {
+            cout << "Alumno " << (j + 1) << ": " << excentricidades[i][j] << endl;
+        }
+        cout << endl;
+    }
+
+    return 0;
+}
